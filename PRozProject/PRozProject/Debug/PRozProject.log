@@ -1,3 +1,3 @@
 ﻿  main.cpp
-C:\Users\TheChosenOne\Desktop\PRozGit\PRozProject\PRozProject\PRozProject\main.cpp(136,12): warning C4244: "argument": konwersja z "time_t" do "unsigned int", możliwa utrata danych
+C:\Users\TheChosenOne\Desktop\PRozGit\PRozProject\PRozProject\PRozProject\main.cpp(85,12): warning C4244: "argument": konwersja z "time_t" do "unsigned int", możliwa utrata danych
   PRozProject.vcxproj -> C:\Users\TheChosenOne\Desktop\PRozGit\PRozProject\PRozProject\Debug\PRozProject.exe
