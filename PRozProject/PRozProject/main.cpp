@@ -1,4 +1,4 @@
-﻿#include <mpi.h>
+﻿#include "mpi.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -45,7 +45,7 @@ void wait(GnomeData* gnomeData);
 
 void getOrder(GnomeData* gnomeData);
 
-void wairForOrder(GnomeData* gnomeData);
+void wairForOrder(GnomeData* gnomeData, bool* syn);
 
 void getPin(GnomeData* gnomeData);
 
@@ -59,7 +59,7 @@ void sendToAll(Packet packet, int tag, int size, int rank);
 
 void showGnomeData(GnomeData* gnomeData);
 
-void processGnome(GnomeData* gnomeData);
+void processGnome(GnomeData* gnomeData, bool* syn);
 
 void gnomeMonitor(GnomeData* gnomeData);
 
@@ -67,7 +67,9 @@ int main(int argc, char** argv)
 {
 	initMap();
 	srand(time(NULL));
-	MPI_Init(&argc, &argv);
+	//MPI_Init(&argc, &argv);
+	int provided;
+	MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
 
 	int rank, size;
 
@@ -101,6 +103,7 @@ int main(int argc, char** argv)
 					MPI_Send(orders, (gnomes + 1) * sizeof(order), MPI_BYTE, i, 0, MPI_COMM_WORLD);
 				}
 				myState = State::WAIT_FOR_ORDERS;
+				//break;
 				continue;
 			}
 
@@ -145,24 +148,26 @@ int main(int argc, char** argv)
 		myData.hamstersToKill = new int[myData.gnomes];
 		myData.gnomesOrder = std::vector<Gnome*>();
 		myData.orders = new order[myData.gnomes + 1];
+		memset(myData.acknowledgementTable, false, myData.gnomes);
+		myData.receivedSignals = 0;
+		myData.acknowledgementCount = 0;
 
-		/*wait(&myData);
-		getOrder(&myData);
+		bool syn = false;
 
-		std::thread thread1(wairForOrder, &myData);
-		std::thread thread2(gnomeMonitor, &myData);
-		thread1.join();
-		thread2.join();*/
-		int i = 2;
-		//while (true)
-		while (i > 0)
+		/*std::thread sayHello(showGnomeData, &myData);
+
+		while (true)
 		{
-			printf("jd");
-			std::thread processThread(processGnome, &myData);
-			std::thread monitorThread(gnomeMonitor, &myData);
-			processThread.join();
+			sayHello.join();
+			std::thread sayHello(showGnomeData, &myData);
+		}*/
+		while (true)
+		{
+			std::thread monitorThread(processGnome, &myData, &syn);
 			monitorThread.join();
-			i--;
+			std::thread processThread(gnomeMonitor, &myData);
+			processThread.join();
+
 		}
 		/*if (myState == State::GET_POISON)
 		{
@@ -327,12 +332,8 @@ void wait(GnomeData* gnomeData)
 
 void getOrder(GnomeData* gnomeData)
 {
-	memset(gnomeData->acknowledgementTable, 0, gnomeData->gnomes);
-	gnomeData->receivedSignals = 0;
-	gnomeData->acknowledgementCount = 0;
 	Packet packet = Packet{ gnomeData->rank, gnomeData->myPriority, Signal::REQ_Z };
-	printf("sent packet\n");
-
+	gnomeData->myState = State::WAIT_FOR_ORDER;
 	for (int i = 1; i < gnomeData->gnomes; i++)
 	{
 		if (i != gnomeData->rank)
@@ -340,10 +341,9 @@ void getOrder(GnomeData* gnomeData)
 			MPI_Send(&packet, sizeof(Packet), MPI_BYTE, i, 1, MPI_COMM_WORLD);
 		}
 	}
-	gnomeData->myState = State::WAIT_FOR_ORDER;
 }
 
-void wairForOrder(GnomeData* gnomeData)
+void wairForOrder(GnomeData* gnomeData, bool* syn)
 {
 	/*Packet packet;
 	MPI_Status status;
@@ -384,11 +384,11 @@ void wairForOrder(GnomeData* gnomeData)
 	}
 	printf("%d\n", positionInQueue);
 	*/
-	if (gnomeData->receivedSignals = gnomeData->gnomes - 1)
+	if (gnomeData->receivedSignals == gnomeData->gnomes - 2)
 	{
 		bool noOrder = true;
-		int positionInQueue = gnomeData->gnomes - gnomeData->acknowledgementCount;
-		if (positionInQueue < gnomeData->ordersCount)
+		int positionInQueue = gnomeData->gnomes - gnomeData->acknowledgementCount - 1;
+		if (positionInQueue < gnomeData->ordersCount + 1)
 		{
 			noOrder = false;
 			gnomeData->myOrder = gnomeData->orders[positionInQueue];
@@ -404,6 +404,9 @@ void wairForOrder(GnomeData* gnomeData)
 			gnomeData->myPriority += 1;
 			gnomeData->myState = State::HUNT;
 		}
+		memset(gnomeData->acknowledgementTable, 0, gnomeData->gnomes);
+		gnomeData->receivedSignals = 0;
+		gnomeData->acknowledgementCount = 0;
 	}
 }
 
@@ -415,7 +418,7 @@ void getPin(GnomeData* gnomeData)
 		return;
 	}
 	gnomeData->acknowledgementCount = 0;
-	memset(&gnomeData->acknowledgementTable, 0, gnomeData->gnomes);
+	memset(&gnomeData->acknowledgementTable, false, gnomeData->gnomes);
 
 	Packet packet = Packet{ gnomeData->rank, gnomeData->myPriority, Signal::REQ_Z };
 	sendToAll(packet, 1, gnomeData->gnomes, gnomeData->rank);
@@ -466,7 +469,8 @@ void criticalSectionPin(GnomeData* gnomeData)
 void hunt(GnomeData* gnomeData)
 {
 	printf("%d killing %d hamsters\n", gnomeData->rank, gnomeData->myOrder.hamsters);
-	MPI_Send(&gnomeData->myOrder, sizeof(order), MPI_BYTE, 0, 2, MPI_COMM_WORLD);
+	order myOrder = order{ gnomeData->rank, gnomeData->myOrder.hamsters };
+	MPI_Send(&myOrder, sizeof(order), MPI_BYTE, 0, 2, MPI_COMM_WORLD);
 	gnomeData->myState = State::WAIT;
 }
 
@@ -488,46 +492,60 @@ void showGnomeData(GnomeData* gnomeData)
 	printf("%d\n", gnomeData->myState);
 }
 
-void processGnome(GnomeData* gnomeData)
+void processGnome(GnomeData* gnomeData, bool* syn)
 {
-	switch (gnomeData->myState)
+	if (gnomeData->myState == State::WAIT)
+	{
+		wait(gnomeData);
+	}
+	if (gnomeData->myState == State::GET_ORDER)
+	{
+		getOrder(gnomeData);
+	}
+	if (gnomeData->myState == State::WAIT_FOR_ORDER)
+	{
+		wairForOrder(gnomeData, syn);
+	}
+	if (gnomeData->myState == State::HUNT)
+	{
+		hunt(gnomeData);
+	}
+	if (gnomeData->myState == State::WAIT)
+	{
+		processGnome(gnomeData, syn);
+	}
+	/*switch (gnomeData->myState)
 	{
 	case State::WAIT:
 	{
 		wait(gnomeData);
-		break;
 	}
 	case State::GET_ORDER:
 	{
 		getOrder(gnomeData);
-		break;
 	}
 	case State::WAIT_FOR_ORDER:
 	{
-		wairForOrder(gnomeData);
-		break;
+		wairForOrder(gnomeData, syn);
 	}
 	case State::GET_PIN:
 	{
 		getPin(gnomeData);
-		break;
 	}
 	case State::WAIT_FOR_PIN:
 	{
 		waitForPin(gnomeData);
-		break;
 	}
 	case State::CRITICAL_SECTION_PIN:
 	{
 		criticalSectionPin(gnomeData);
-		break;
 	}
 	case State::HUNT:
 	{
 		hunt(gnomeData);
 		break;
 	}
-	}
+	}*/
 }
 
 void gnomeMonitor(GnomeData* gnomeData)
@@ -539,7 +557,6 @@ void gnomeMonitor(GnomeData* gnomeData)
 	me = new Gnome{ gnomeData->rank, gnomeData->myPriority };
 	MPI_Recv(&packet, sizeof(Packet), MPI_BYTE, MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, &status);
 
-	printf("received packet\n");
 	other = new Gnome{ packet.id, packet.priority };
 
 	if (signalState[packet.signal] == gnomeData->myState)
@@ -551,12 +568,15 @@ void gnomeMonitor(GnomeData* gnomeData)
 				gnomeData->acknowledgementTable[packet.id] = true;
 				gnomeData->acknowledgementCount += 1;
 			}
+			gnomeData->receivedSignals += 1;
 		}
 		else
 		{
 			if (!compareGnomes(me, other))
 			{
 				Packet response = Packet{ gnomeData->rank, gnomeData->myPriority, defaultResponse[packet.signal] };
+				MPI_Send(&response, sizeof(Packet), MPI_BYTE, packet.id, 1, MPI_COMM_WORLD);
+				gnomeData->receivedSignals += 1;
 			}
 		}
 		
@@ -568,7 +588,12 @@ void gnomeMonitor(GnomeData* gnomeData)
 			Packet response = Packet{ gnomeData->rank, gnomeData->myPriority, defaultResponse[packet.signal] };
 			MPI_Send(&response, sizeof(Packet), MPI_BYTE, packet.id, 1, MPI_COMM_WORLD);
 		}
+		else
+		{
+			gnomeData->acknowledgementCount += 1;
+		}
+		gnomeData->receivedSignals += 1;
 	}
-	gnomeData->receivedSignals += 1;
 	delete other;
+	delete me;
 }

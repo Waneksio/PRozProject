@@ -1,3 +1,10 @@
 ﻿  main.cpp
-C:\Users\TheChosenOne\Desktop\PRozGit\PRozProject\PRozProject\PRozProject\main.cpp(69,12): warning C4244: "argument": konwersja z "time_t" do "unsigned int", możliwa utrata danych
-  PRozProject.vcxproj -> C:\Users\TheChosenOne\Desktop\PRozGit\PRozProject\PRozProject\Debug\PRozProject.exe
+C:\Users\szef\Desktop\PRozProject\PRozProject\PRozProject\main.cpp(69,12): warning C4244: "argument": konwersja z "time_t" do "unsigned int", możliwa utrata danych
+main.obj : error LNK2019: nierozpoznany symbol zewnętrzny _MPI_Send@24 przywołany w funkcji "void __cdecl getOrder(struct GnomeData *)" (?getOrder@@YAXPAUGnomeData@@@Z)
+main.obj : error LNK2019: nierozpoznany symbol zewnętrzny _MPI_Recv@28 przywołany w funkcji "void __cdecl gnomeMonitor(struct GnomeData *)" (?gnomeMonitor@@YAXPAUGnomeData@@@Z)
+main.obj : error LNK2019: nierozpoznany symbol zewnętrzny _MPI_Comm_size@8 przywołany w funkcji _main
+main.obj : error LNK2019: nierozpoznany symbol zewnętrzny _MPI_Comm_rank@8 przywołany w funkcji _main
+main.obj : error LNK2019: nierozpoznany symbol zewnętrzny _MPI_Init@8 przywołany w funkcji _main
+main.obj : error LNK2019: nierozpoznany symbol zewnętrzny _MPI_Finalize@0 przywołany w funkcji _main
+C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64\msmpi.lib : warning LNK4272: wystąpił konflikt typu maszyny biblioteki „x64” z typem maszyny docelowej „x86”
+C:\Users\szef\Desktop\PRozProject\PRozProject\Debug\PRozProject.exe : fatal error LNK1120: liczba nierozpoznanych elementów zewnętrznych: 6
