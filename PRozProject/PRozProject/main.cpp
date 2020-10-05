@@ -1,4 +1,4 @@
-﻿#include "mpi.h"
+﻿#include <mpi.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -138,7 +138,7 @@ int main(int argc, char** argv)
 	else
 	{
 		GnomeData myData;
-		myData.pins = 2000;
+		myData.pins = 5000;
 		myData.poisons = 10000;
 		MPI_Comm_size(MPI_COMM_WORLD, &myData.gnomes);
 		MPI_Comm_rank(MPI_COMM_WORLD, &myData.rank);
@@ -402,11 +402,8 @@ void wairForOrder(GnomeData* gnomeData, bool* syn)
 		{
 			printf("%d taking order %d\n", gnomeData->rank, gnomeData->myOrder.id);
 			gnomeData->myPriority += 1;
-			gnomeData->myState = State::HUNT;
+			gnomeData->myState = State::GET_PIN;
 		}
-		memset(gnomeData->acknowledgementTable, 0, gnomeData->gnomes);
-		gnomeData->receivedSignals = 0;
-		gnomeData->acknowledgementCount = 0;
 	}
 }
 
@@ -431,7 +428,20 @@ void waitForPin(GnomeData* gnomeData)
 	Packet packet;
 	MPI_Status status;
 
-	while (gnomeData->acknowledgementCount < 0)
+	if (gnomeData->acknowledgementCount > 0)
+	{
+		gnomeData->pins -= gnomeData->ordersCount;
+		gnomeData->myState = State::CRITICAL_SECTION_PIN;
+		return;
+	}
+	if (gnomeData->receivedSignals == gnomeData->gnomes - 2)
+	{
+		gnomeData->pins = gnomeData->pins - gnomeData->ordersCount + gnomeData->acknowledgementCount;
+		gnomeData->myState = State::HUNT;
+		return;
+	}
+	printf("there is %d pins left", gnomeData->pins);
+	/*while (gnomeData->acknowledgementCount < 0)
 	{
 		MPI_Recv(&packet, sizeof(Packet), MPI_BYTE, MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, &status);
 
@@ -454,16 +464,17 @@ void waitForPin(GnomeData* gnomeData)
 				gnomeData->acknowledgementCount++;
 			}
 		}
-	}
-	gnomeData->myState = State::CRITICAL_SECTION_PIN;
+	}*/
 }
 
 void criticalSectionPin(GnomeData* gnomeData)
 {
 	printf("%d taking pin", gnomeData->rank);
-	gnomeData->pins -= 1;
 	gnomeData->myPriority += 1;
 	gnomeData->myState = State::HUNT;
+	memset(gnomeData->acknowledgementTable, 0, gnomeData->gnomes);
+	gnomeData->receivedSignals = 0;
+	gnomeData->acknowledgementCount = 0;
 }
 
 void hunt(GnomeData* gnomeData)
@@ -505,6 +516,18 @@ void processGnome(GnomeData* gnomeData, bool* syn)
 	if (gnomeData->myState == State::WAIT_FOR_ORDER)
 	{
 		wairForOrder(gnomeData, syn);
+	}
+	if (gnomeData->myState == State::GET_PIN)
+	{
+		getPin(gnomeData);
+	}
+	if (gnomeData->myState == State::WAIT_FOR_PIN)
+	{
+		waitForPin(gnomeData);
+	}
+	if (gnomeData->myState == State::CRITICAL_SECTION_PIN)
+	{
+		criticalSectionPin;
 	}
 	if (gnomeData->myState == State::HUNT)
 	{
